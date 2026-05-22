@@ -1,0 +1,11 @@
+version: v1alpha1
+metadata:
+  name: hyper-v-linux-guest
+  version: "{{ .VERSION }}"
+  author: Windsor CLI
+  description: |
+    [{{ .TIER }}] Hyper-V Linux guest integration services for Talos: KVP daemon (guest IP and
+    metadata for host Get-VMNetworkAdapter) and VSS daemon for application-consistent checkpoints.
+  compatibility:
+    talos:
+      version: ">= v1.8.0"

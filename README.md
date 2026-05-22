@@ -28,6 +28,7 @@ In a Windsor context, set Talos extensions on the cluster facet (see Core `clust
 
 | Name | Tier | Image | Description |
 | --- | --- | --- | --- |
+| [hyper-v-linux-guest](extensions/hyper-v-linux-guest/) | contrib | `ghcr.io/windsorcli/hyper-v-linux-guest` | Hyper-V KVP/VSS daemons for guest IP discovery and checkpoints |
 | [windsor-hello](contrib/windsor-hello/) | contrib | `ghcr.io/windsorcli/windsor-hello` | CI smoke-test extension |
 
 ## Developing
@@ -56,7 +57,7 @@ make extensions PLATFORM=linux/amd64
 
 ### Add an extension
 
-1. Copy [`extensions/_template`](extensions/_template) to `contrib/<name>/` or `services/<name>/`.
+1. Copy [`extensions/_template`](extensions/_template) to `extensions/<name>/` or `contrib/<name>/`.
 2. Implement `manifest.yaml` and `pkg.yaml`.
 3. Add `<name>` to `spec.targets` in [`.kres.yaml`](.kres.yaml), then run `make rekres`.
 4. Open a PR — CI builds on `linux/amd64`.

@@ -59,7 +59,7 @@ TOOLS_PREFIX ?= ghcr.io/siderolabs
 
 # targets defines all the available extension targets
 
-TARGETS = windsor-hello
+TARGETS = windsor-hello hyper-v-linux-guest
 
 export define HELP_MENU_HEADER
 # Windsor Talos Extensions

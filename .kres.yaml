@@ -3,6 +3,7 @@ kind: pkgfile.Build
 spec:
   targets:
     - windsor-hello
+    - hyper-v-linux-guest
   reproducibleTargetName: reproducibility
   extraBuildArgs:
     - TAG

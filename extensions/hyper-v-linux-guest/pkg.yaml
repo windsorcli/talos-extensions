@@ -1,0 +1,47 @@
+name: hyper-v-linux-guest
+variant: scratch
+shell: /bin/bash
+dependencies:
+  - stage: base
+steps:
+  - env:
+      LINUX_TOOLS_TAG: v6.12.28
+    cachePaths:
+      - /.cache/hyperv-tools
+    build:
+      - |
+        set -euo pipefail
+        mkdir -p /.cache/hyperv-tools
+        cd /.cache/hyperv-tools
+        for f in hv_kvp_daemon.c hv_vss_daemon.c; do
+          if [ ! -f "$f" ]; then
+            curl -fsSL -o "$f" \
+              "https://raw.githubusercontent.com/torvalds/linux/${LINUX_TOOLS_TAG}/tools/hv/${f}"
+          fi
+        done
+        gcc -Os -static -o hv_kvp_daemon hv_kvp_daemon.c
+        gcc -Os -static -o hv_vss_daemon hv_vss_daemon.c
+    install:
+      - |
+        kvp_root=/rootfs/usr/local/lib/containers/hyperv-kvp
+        vss_root=/rootfs/usr/local/lib/containers/hyperv-vss
+        mkdir -p "$kvp_root" "$vss_root" /rootfs/usr/local/etc/containers
+
+        cp /.cache/hyperv-tools/hv_kvp_daemon "$kvp_root/"
+        cp /.cache/hyperv-tools/hv_vss_daemon "$vss_root/"
+        cp /pkg/src/run-hyperv-kvp.sh "$kvp_root/"
+        chmod +x "$kvp_root/run-hyperv-kvp.sh" "$kvp_root/hv_kvp_daemon" "$vss_root/hv_vss_daemon"
+
+        cp /pkg/hyperv-kvp.yaml /rootfs/usr/local/etc/containers/
+        cp /pkg/hyperv-vss.yaml /rootfs/usr/local/etc/containers/
+  test:
+    - |
+      mkdir -p /extensions-validator-rootfs
+      cp -r /rootfs/ /extensions-validator-rootfs/rootfs
+      cp /pkg/manifest.yaml /extensions-validator-rootfs/manifest.yaml
+      /extensions-validator validate --rootfs=/extensions-validator-rootfs --pkg-name="${PKG_NAME}"
+finalize:
+  - from: /rootfs
+    to: /rootfs
+  - from: /pkg/manifest.yaml
+    to: /
