@@ -1,0 +1,4 @@
+ignore: |
+  ci.yaml
+  release-drafter.yaml
+  release-drafter.yml

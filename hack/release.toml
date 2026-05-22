@@ -1,0 +1,7 @@
+previous = "CHANGELOG.md"
+
+[notes]
+  title = "Talos System Extensions"
+
+[notes.release]
+  title = "Talos System Extensions"

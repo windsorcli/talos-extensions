@@ -1,0 +1,11 @@
+version: v1alpha1
+metadata:
+  name: windsor-hello
+  version: 0.0.1
+  author: Windsor CLI
+  description: |
+    Smoke-test extension used to validate the Windsor extensions build pipeline.
+    Not intended for production clusters.
+  compatibility:
+    talos:
+      version: ">= v1.8.0"
