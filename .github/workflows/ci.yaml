@@ -1,0 +1,95 @@
+# Build Windsor Talos system extensions and publish to ghcr.io on main and tags.
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  USERNAME: windsorcli
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Unshallow
+        run: git fetch --prune --unshallow
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+
+      - name: Install crane and yq
+        run: |
+          go install github.com/google/go-containerregistry/cmd/crane@latest
+          go install github.com/mikefarah/yq/v4@latest
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Yamllint
+        run: |
+          pip install yamllint
+          yamllint .
+
+      - name: Build extensions
+        if: github.event_name == 'pull_request'
+        run: make PLATFORM=linux/amd64
+
+      - name: Login to ghcr.io
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push extension images
+        if: github.event_name != 'pull_request'
+        run: make PUSH=true PLATFORM=linux/amd64,linux/arm64
+
+      - name: Push extensions catalog image
+        if: github.event_name != 'pull_request'
+        env:
+          PUSH: "true"
+        run: make extensions PLATFORM=linux/amd64,linux/arm64
+
+      - name: Upload extensions metadata
+        if: github.event_name != 'pull_request'
+        run: make extensions-metadata
+
+      - name: Release notes
+        if: startsWith(github.ref, 'refs/tags/')
+        run: make release-notes
+
+      - name: GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0
+        with:
+          body_path: _out/RELEASE_NOTES.md
+          draft: true
+
+      - name: Upload catalog artifact
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: extensions-metadata
+          path: |
+            _out/extensions-metadata
+            internal/extensions/image-digests
+          retention-days: 90

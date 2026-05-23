@@ -1,0 +1,8 @@
+# Meta-package: bundles extension image digests for a Talos release tag.
+name: extensions
+variant: scratch
+finalize:
+  - from: /pkg/image-digests
+    to: /image-digests
+  - from: /pkg/descriptions.yaml
+    to: /descriptions.yaml

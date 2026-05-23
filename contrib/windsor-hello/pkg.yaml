@@ -1,0 +1,5 @@
+name: windsor-hello
+variant: scratch
+finalize:
+  - from: /pkg/manifest.yaml
+    to: /

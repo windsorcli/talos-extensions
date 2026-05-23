@@ -1,0 +1,11 @@
+# Copy this directory to contrib/<name>/ or services/<name>/ and customize.
+#
+# For extensions that install binaries or kernel modules, add build steps and
+# copy artifacts under /rootfs. See Sidero docs and siderolabs/extensions examples.
+name: my-extension
+variant: scratch
+finalize:
+  - from: /rootfs
+    to: /rootfs
+  - from: /pkg/manifest.yaml
+    to: /

@@ -1,0 +1,9 @@
+_out/
+.terraform/
+
+# macOS
+**/.DS_Store
+
+# IDE
+.cursor/
+.vscode/*.local.*
