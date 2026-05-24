@@ -1,4 +1,13 @@
 ---
+# pkgfile.Build generates the Makefile and the bldr/buildx wiring.
+#
+# Note on provenance / SBOM: kres emits `COMMON_ARGS += --provenance=false`
+# in the generated Makefile, which is fine for local builds (faster, no
+# attestation overhead). CI in `.github/workflows/ci.yaml` sets
+# `CI_ARGS: --provenance=mode=max --sbom=true` on the build job, which
+# buildx applies last-wins to attach SLSA build provenance and an SPDX
+# SBOM to every published image. Both are then signed by cosign keyless.
+# If you change CI_ARGS, update this comment and CONTRIBUTING.md.
 kind: pkgfile.Build
 spec:
   targets:

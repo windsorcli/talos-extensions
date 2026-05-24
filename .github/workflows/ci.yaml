@@ -84,6 +84,12 @@ jobs:
     env:
       # Enable SLSA-style build provenance and an SPDX SBOM as OCI attestations
       # on every pushed image. Buildx wires these in alongside the manifest.
+      #
+      # The generated Makefile (line 47) sets `--provenance=false` for local
+      # builds; the flags here override it (buildx last-wins). If you drop
+      # this line, published images lose provenance and SBOM attestations —
+      # cosign signing still works but consumers can no longer verify the
+      # build process or SBOM. See .kres.yaml for the source of truth.
       CI_ARGS: --provenance=mode=max --sbom=true
     steps:
       - name: Checkout
