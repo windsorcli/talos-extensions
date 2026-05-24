@@ -25,7 +25,7 @@ function release-notes {
 if declare -f "$1" > /dev/null; then
   cmd="$1"
   shift
-  $cmd "$@"
+  "$cmd" "$@"
 else
   cat <<EOF
 Usage:
