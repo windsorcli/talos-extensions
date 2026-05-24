@@ -1,0 +1,81 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":dependencyDashboard"
+  ],
+  "labels": [
+    "dependencies"
+  ],
+  "platformAutomerge": true,
+  "packageRules": [
+    {
+      "description": "Pin GitHub Actions to commit SHAs and automerge digest bumps. Matches the existing # vX.Y.Z + SHA convention in .github/workflows/.",
+      "matchManagers": [
+        "github-actions"
+      ],
+      "versioning": "github-tags",
+      "pinDigests": true,
+      "automerge": true,
+      "automergeType": "pr",
+      "automergeStrategy": "squash",
+      "matchPackageNames": [
+        "/.*/"
+      ]
+    },
+    {
+      "description": "Automerge all other dependency updates (Docker image refs, custom-manager regex matches). Maintainers can disable per-PR by removing the label.",
+      "matchUpdateTypes": [
+        "major",
+        "minor",
+        "patch"
+      ],
+      "automerge": true,
+      "automergeType": "pr",
+      "automergeStrategy": "squash",
+      "labels": [
+        "dependencies"
+      ]
+    }
+  ],
+  "customManagers": [
+    {
+      "description": "bldr syntax directive at the top of Pkgfile.",
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^Pkgfile$/"
+      ],
+      "matchStrings": [
+        "# syntax = ghcr\\.io/siderolabs/bldr:(?<currentValue>v\\d+\\.\\d+\\.\\d+)"
+      ],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "siderolabs/bldr",
+      "versioningTemplate": "semver"
+    },
+    {
+      "description": "conftest version pinned in the CI workflow env.",
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^\\.github/workflows/ci\\.yaml$/"
+      ],
+      "matchStrings": [
+        "CONFTEST_VERSION:\\s*(?<currentValue>\\d+\\.\\d+\\.\\d+)"
+      ],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "open-policy-agent/conftest",
+      "versioningTemplate": "semver"
+    },
+    {
+      "description": "Sidero release-tool image used by hack/release.sh.",
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^hack/release\\.sh$/"
+      ],
+      "matchStrings": [
+        "RELEASE_TOOL_IMAGE=\"(?<depName>ghcr\\.io/siderolabs/release-tool):(?<currentValue>\\S+)\""
+      ],
+      "datasourceTemplate": "docker",
+      "versioningTemplate": "loose"
+    }
+  ]
+}
