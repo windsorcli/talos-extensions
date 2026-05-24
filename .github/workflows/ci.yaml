@@ -154,6 +154,33 @@ jobs:
           cosign sign --recursive "${CATALOG_REF}@${CATALOG_DIGEST}"
           echo "::endgroup::"
 
+      - name: Verify signatures (self-check)
+        if: github.event_name != 'pull_request'
+        env:
+          # Mirror the public verification command documented in README.md.
+          # Catches silent drift in workflow path, cert identity, or OIDC
+          # issuer — failures here mean the verify command consumers run
+          # would also fail.
+          COSIGN_IDENTITY_REGEXP: 'https://github.com/windsorcli/talos-extensions/\.github/workflows/ci\.yaml@.*'
+          COSIGN_OIDC_ISSUER: https://token.actions.githubusercontent.com
+        run: |
+          TAG="$(git describe --tag --always --dirty --match 'v[0-9]*')"
+          CATALOG_REF="${REGISTRY}/${USERNAME}/extensions:${TAG}"
+          CATALOG_DIGEST="$(crane digest "${CATALOG_REF}")"
+
+          {
+            cat internal/extensions/image-digests
+            echo "${CATALOG_REF}@${CATALOG_DIGEST}"
+          } | while IFS= read -r ref; do
+            [ -z "$ref" ] && continue
+            echo "::group::cosign verify $ref"
+            cosign verify "$ref" \
+              --certificate-identity-regexp "${COSIGN_IDENTITY_REGEXP}" \
+              --certificate-oidc-issuer "${COSIGN_OIDC_ISSUER}" > /dev/null
+            echo "verified"
+            echo "::endgroup::"
+          done
+
       - name: Release notes
         if: startsWith(github.ref, 'refs/tags/')
         run: make release-notes
