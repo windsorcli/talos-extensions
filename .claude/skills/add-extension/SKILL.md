@@ -6,6 +6,11 @@ disable-model-invocation: true
 
 # Add Extension
 
+> **Hard rule: never run `git commit` on the author's behalf without an
+> explicit go-ahead for the specific change.** Stage edits, show the
+> diff, hand back. Momentum signals like "proceed" or "do the next one"
+> do not approve a commit. See `[[feedback-no-auto-commit]]`.
+
 Scaffold a new Talos system extension from `extensions/_template/`,
 wire it into the build, and verify it. Authoring is mostly editing two
 small YAML files (`manifest.yaml` + `pkg.yaml`) and adding a target to

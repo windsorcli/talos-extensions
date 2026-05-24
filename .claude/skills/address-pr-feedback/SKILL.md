@@ -6,6 +6,13 @@ disable-model-invocation: true
 
 # Address PR Feedback
 
+> **Hard rule: never run `git commit` on the author's behalf without an
+> explicit go-ahead for the specific change.** Stage edits, show the
+> diff, hand back. Momentum signals like "proceed", "do the next one",
+> or approval of a plan do not approve a commit — the commit needs its
+> own confirmation. Same applies to `git push`. See
+> `[[feedback-no-auto-commit]]` for the standing preference.
+
 Walk the current branch's PR comments + failed CI checks one finding at a
 time. For each finding: discuss the bug, propose a fix, make the edits,
 run local gates, **stage the changes**, and **stop for author review**
