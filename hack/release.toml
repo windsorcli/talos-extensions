@@ -1,0 +1,16 @@
+# commit to be tagged for new release
+commit = "HEAD"
+
+project_name = "Windsor Talos Extensions"
+github_repo = "windsorcli/talos-extensions"
+
+# previous release - initial empty commit for the first cut
+previous = "50040f8c0a26a203f8180c1a2a9bd864b4bad832"
+
+pre_release = true
+
+preface = """\
+First catalog release of Windsor Talos system extensions.
+"""
+
+[notes]

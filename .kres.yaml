@@ -1,0 +1,110 @@
+---
+# pkgfile.Build generates the Makefile and the bldr/buildx wiring.
+#
+# Note on provenance / SBOM: kres emits `COMMON_ARGS += --provenance=false`
+# in the generated Makefile, which is fine for local builds (faster, no
+# attestation overhead). CI in `.github/workflows/ci.yaml` sets
+# `CI_ARGS: --provenance=mode=max --sbom=true` on the build job, which
+# buildx applies last-wins to attach SLSA build provenance and an SPDX
+# SBOM to every published image. Both are then signed by cosign keyless.
+# If you change CI_ARGS, update this comment and CONTRIBUTING.md.
+kind: pkgfile.Build
+spec:
+  targets:
+    - windsor-hello
+  reproducibleTargetName: reproducibility
+  extraBuildArgs:
+    - TAG
+    - PKGS
+    - PKGS_PREFIX
+    - TOOLS
+    - TOOLS_PREFIX
+  makefile:
+    extraVariables:
+      - name: EXTENSIONS_IMAGE_REF
+        defaultValue: $(REGISTRY_AND_USERNAME)/extensions:$(TAG)
+      - name: PKGS
+        defaultValue: v1.12.5
+      - name: PKGS_PREFIX
+        defaultValue: ghcr.io/siderolabs
+      - name: TOOLS
+        defaultValue: v1.12.5
+      - name: TOOLS_PREFIX
+        defaultValue: ghcr.io/siderolabs
+    useBldrPkgTagResolver: true
+---
+kind: common.Build
+spec:
+  ignoredPaths:
+    - internal/extensions/image-digests
+    - internal/extensions/descriptions.yaml
+---
+kind: auto.CustomSteps
+spec:
+  steps:
+    - name: extensions
+      toplevel: true
+    - name: extensions-metadata
+      toplevel: true
+    - name: internal/extensions/image-digests
+      toplevel: true
+    - name: internal/extensions/descriptions.yaml
+      toplevel: true
+---
+kind: custom.Step
+name: extensions
+spec:
+  makefile:
+    enabled: true
+    phony: true
+    depends:
+      - internal/extensions/descriptions.yaml
+    script:
+      - |
+        @$(MAKE) docker-$@ TARGET_ARGS="--tag=$(EXTENSIONS_IMAGE_REF) --push=$(PUSH)"
+  ghaction:
+    enabled: true
+    condition: except-pull-request
+    environment:
+      PUSH: true
+---
+kind: custom.Step
+name: extensions-metadata
+spec:
+  makefile:
+    enabled: true
+    phony: true
+    depends:
+      - internal/extensions/image-digests
+    script:
+      - |
+        @cp internal/extensions/image-digests $(ARTIFACTS)/extensions-metadata
+---
+kind: custom.Step
+name: internal/extensions/image-digests
+spec:
+  makefile:
+    enabled: true
+    phony: true
+    depends:
+      - $(ARTIFACTS)/bldr
+    script:
+      - |
+        @rm -f internal/extensions/image-digests
+        @$(foreach target,$(TARGETS),echo $(REGISTRY)/$(USERNAME)/$(target):$(shell $(ARTIFACTS)/bldr eval --target $(target) --build-arg TAG=$(TAG) '{{.VERSION}}' 2>/dev/null)@$(shell yq -r '."containerimage.digest"' $(ARTIFACTS)/$(target).metadata.json) >> internal/extensions/image-digests;)
+---
+kind: custom.Step
+name: internal/extensions/descriptions.yaml
+spec:
+  makefile:
+    enabled: true
+    phony: true
+    depends:
+      - internal/extensions/image-digests
+    script:
+      - |
+        @echo "Generating image descriptions..."
+        @echo -n "" > internal/extensions/descriptions.yaml
+        @for image in $(shell cat internal/extensions/image-digests); do \
+          crane export $$image - | tar x -O --occurrence=1 manifest.yaml | yq -r ". += {\"$$image\": {\"author\": .metadata.author, \"description\": .metadata.description}} | del(.metadata, .version)" - >> internal/extensions/descriptions.yaml; \
+        done

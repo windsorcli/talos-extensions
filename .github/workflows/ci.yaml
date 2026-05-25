@@ -1,0 +1,209 @@
+# Build Windsor Talos system extensions and publish to ghcr.io on main and tags.
+#
+# Jobs:
+#   lint    yamllint, shellcheck, conftest schema checks; no privileged perms.
+#   build   docker buildx build per extension; on non-PR events also pushes,
+#           generates the catalog image, signs everything with cosign keyless
+#           (GitHub OIDC), and emits SBOM + SLSA provenance attestations.
+
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+# Default to read-only; jobs that need to publish or attest opt in below.
+permissions:
+  contents: read
+
+env:
+  REGISTRY: ghcr.io
+  USERNAME: windsorcli
+  CONFTEST_VERSION: 0.68.2
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Yamllint
+        run: |
+          pip install yamllint
+          yamllint .
+
+      - name: ShellCheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+          shellcheck scripts/*.sh hack/*.sh
+
+      - name: Install conftest
+        run: |
+          curl -fsSL -o /tmp/conftest.tgz \
+            "https://github.com/open-policy-agent/conftest/releases/download/v${CONFTEST_VERSION}/conftest_${CONFTEST_VERSION}_Linux_x86_64.tar.gz"
+          sudo tar -xzf /tmp/conftest.tgz -C /usr/local/bin conftest
+          conftest --version
+
+      - name: Conftest (per-file)
+        run: |
+          conftest test --policy policy \
+            contrib/*/manifest.yaml contrib/*/pkg.yaml \
+            extensions/_template/manifest.yaml extensions/_template/pkg.yaml
+
+      - name: Conftest (combined, per-extension)
+        run: |
+          for dir in contrib/* extensions/_template; do
+            if [ -f "$dir/manifest.yaml" ] && [ -f "$dir/pkg.yaml" ]; then
+              echo "::group::Cross-file checks for $dir"
+              conftest test --policy policy --combine "$dir/manifest.yaml" "$dir/pkg.yaml"
+              echo "::endgroup::"
+            fi
+          done
+
+  build:
+    runs-on: ubuntu-latest
+    needs: lint
+    permissions:
+      contents: write      # softprops/action-gh-release on tag
+      packages: write      # ghcr push (images, sigs, attestations)
+      id-token: write      # cosign keyless OIDC
+    env:
+      # Enable SLSA-style build provenance and an SPDX SBOM as OCI attestations
+      # on every pushed image. Buildx wires these in alongside the manifest.
+      #
+      # The generated Makefile (line 47) sets `--provenance=false` for local
+      # builds; the flags here override it (buildx last-wins). If you drop
+      # this line, published images lose provenance and SBOM attestations —
+      # cosign signing still works but consumers can no longer verify the
+      # build process or SBOM. See .kres.yaml for the source of truth.
+      CI_ARGS: --provenance=mode=max --sbom=true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Unshallow
+        run: git fetch --prune --unshallow
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+
+      - name: Install crane and yq
+        run: |
+          go install github.com/google/go-containerregistry/cmd/crane@latest
+          go install github.com/mikefarah/yq/v4@latest
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Install cosign
+        if: github.event_name != 'pull_request'
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      - name: Build extensions
+        if: github.event_name == 'pull_request'
+        run: make PLATFORM=linux/amd64
+
+      - name: Login to ghcr.io
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push extension images
+        if: github.event_name != 'pull_request'
+        run: make PUSH=true PLATFORM=linux/amd64,linux/arm64
+
+      - name: Push extensions catalog image
+        if: github.event_name != 'pull_request'
+        env:
+          PUSH: "true"
+        run: make extensions PLATFORM=linux/amd64,linux/arm64
+
+      - name: Upload extensions metadata
+        if: github.event_name != 'pull_request'
+        run: make extensions-metadata
+
+      - name: Sign published images
+        if: github.event_name != 'pull_request'
+        env:
+          COSIGN_YES: "true"
+        run: |
+          # Per-extension images. internal/extensions/image-digests is one
+          # `repo:tag@sha256:…` reference per line, written by `make extensions-metadata`.
+          while IFS= read -r ref; do
+            [ -z "$ref" ] && continue
+            echo "::group::cosign sign $ref"
+            cosign sign --recursive "$ref"
+            echo "::endgroup::"
+          done < internal/extensions/image-digests
+
+          # Catalog image. Resolve the digest from the registry since the
+          # Makefile's `extensions` target does not emit a metadata file.
+          TAG="$(git describe --tag --always --dirty --match 'v[0-9]*')"
+          CATALOG_REF="${REGISTRY}/${USERNAME}/extensions:${TAG}"
+          CATALOG_DIGEST="$(crane digest "${CATALOG_REF}")"
+          echo "::group::cosign sign ${CATALOG_REF}@${CATALOG_DIGEST}"
+          cosign sign --recursive "${CATALOG_REF}@${CATALOG_DIGEST}"
+          echo "::endgroup::"
+
+      - name: Verify signatures (self-check)
+        if: github.event_name != 'pull_request'
+        env:
+          # Mirror the public verification command documented in README.md.
+          # Catches silent drift in workflow path, cert identity, or OIDC
+          # issuer — failures here mean the verify command consumers run
+          # would also fail.
+          COSIGN_IDENTITY_REGEXP: 'https://github.com/windsorcli/talos-extensions/\.github/workflows/ci\.yaml@.*'
+          COSIGN_OIDC_ISSUER: https://token.actions.githubusercontent.com
+        run: |
+          TAG="$(git describe --tag --always --dirty --match 'v[0-9]*')"
+          CATALOG_REF="${REGISTRY}/${USERNAME}/extensions:${TAG}"
+          CATALOG_DIGEST="$(crane digest "${CATALOG_REF}")"
+
+          {
+            cat internal/extensions/image-digests
+            echo "${CATALOG_REF}@${CATALOG_DIGEST}"
+          } | while IFS= read -r ref; do
+            [ -z "$ref" ] && continue
+            echo "::group::cosign verify $ref"
+            cosign verify "$ref" \
+              --certificate-identity-regexp "${COSIGN_IDENTITY_REGEXP}" \
+              --certificate-oidc-issuer "${COSIGN_OIDC_ISSUER}" > /dev/null
+            echo "verified"
+            echo "::endgroup::"
+          done
+
+      - name: Release notes
+        if: startsWith(github.ref, 'refs/tags/')
+        run: make release-notes
+
+      - name: GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0
+        with:
+          body_path: _out/RELEASE_NOTES.md
+          draft: true
+
+      - name: Upload catalog artifact
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: extensions-metadata
+          path: |
+            _out/extensions-metadata
+            internal/extensions/image-digests
+          retention-days: 90
