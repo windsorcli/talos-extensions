@@ -1,0 +1,15 @@
+name: hyperv-vss
+container:
+  entrypoint: ./hv_vss_daemon
+  args:
+    - -n
+  mounts:
+    - source: /dev
+      destination: /dev
+      type: bind
+      options:
+        - rbind
+        - rw
+depends:
+  - service: hyperv-kvp
+restart: always

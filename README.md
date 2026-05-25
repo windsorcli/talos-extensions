@@ -41,6 +41,7 @@ In a Windsor context, set Talos extensions on the cluster facet (see Core `clust
 
 | Name | Tier | Image | Description |
 | --- | --- | --- | --- |
+| [hyperv-guest](contrib/hyperv-guest/) | contrib | `ghcr.io/windsorcli/hyperv-guest` | Hyper-V Linux guest integration services (KVP + VSS daemons) |
 | [windsor-hello](contrib/windsor-hello/) | contrib | `ghcr.io/windsorcli/windsor-hello` | CI smoke-test extension |
 
 ## Developing

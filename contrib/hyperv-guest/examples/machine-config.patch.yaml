@@ -1,0 +1,13 @@
+# Append to Talos machine config (control plane / workers on Hyper-V).
+# Build a schematic that includes this extension image, then install/upgrade nodes.
+#
+#   talosctl gen config ... --config-patch @machine-config.patch.yaml
+#
+machine:
+  install:
+    extensions:
+      - image: ghcr.io/windsorcli/hyper-v-linux-guest:0.1.0
+  kernel:
+    modules:
+      - name: hv_utils
+      - name: hv_vmbus
