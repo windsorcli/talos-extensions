@@ -23,6 +23,18 @@ PRs run two jobs:
 
 ## Testing extensions
 
+### Locally, end-to-end (no remote pushes)
+
+```bash
+./hack/test-extension-local.sh <extension-name> [talos-version]
+```
+
+Runs the full pipeline on your workstation: spins up a `localhost:5000` registry, builds the extension, assembles a custom Talos installer with `imager`, boots a `talosctl cluster create --provisioner docker` cluster with that installer, and prints `talosctl get extensions` + service logs. Tears down on exit. Requires `docker` and `talosctl`; nothing pushes to ghcr.io.
+
+Hardware-coupled extensions (anything depending on vmbus, specific PCI devices, etc.) will install cleanly in the local cluster but their daemons won't have the hardware to talk to — use the local script to validate packaging, then test on real hardware for end-to-end function.
+
+### What CI runs
+
 Today's CI gates are schema (conftest), lint (yamllint, shellcheck), build (bldr/buildx), sign (cosign), and verify-self (the documented `cosign verify` command runs against the just-signed images). That's enough for a manifest-only or simple-rootfs extension.
 
 For extensions that ship binaries, kernel modules, or anything with runtime behavior, the first such extension should also land:

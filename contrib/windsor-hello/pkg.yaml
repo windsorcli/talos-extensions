@@ -1,5 +1,10 @@
 name: windsor-hello
 variant: scratch
 finalize:
+  # Talos extensions require /rootfs in the OCI image (imager rejects them
+  # otherwise). windsor-hello is a manifest-only smoke test, so it ships an
+  # empty rootfs/ tracked in-repo via a .gitkeep.
+  - from: /pkg/rootfs
+    to: /rootfs
   - from: /pkg/manifest.yaml
     to: /
