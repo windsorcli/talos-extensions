@@ -194,8 +194,9 @@ docker run --rm -t \
 # metal-amd64.tar, etc.). Pick the newest *.tar in _out/.
 INSTALLER_TAR="$(find "$OUT_DIR" -maxdepth 1 -name '*.tar' -type f -print0 \
   | xargs -0 ls -t 2>/dev/null | head -1)"
-[ -n "$INSTALLER_TAR" ] && [ -f "$INSTALLER_TAR" ] \
-  || fail "imager did not produce an installer tar in $OUT_DIR"
+if [ -z "$INSTALLER_TAR" ] || [ ! -f "$INSTALLER_TAR" ]; then
+  fail "imager did not produce an installer tar in $OUT_DIR"
+fi
 
 # ---------------------------------------------------------------------------
 # 4. Load (docker) / push (qemu) the installer so the cluster can use it
