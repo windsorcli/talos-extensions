@@ -41,6 +41,7 @@ In a Windsor context, set Talos extensions on the cluster facet (see Core `clust
 
 | Name | Tier | Image | Description |
 | --- | --- | --- | --- |
+| [hyperv-guest](contrib/hyperv-guest/) | contrib | `ghcr.io/windsorcli/hyperv-guest` | Hyper-V Linux guest integration services (KVP + VSS daemons) |
 | [windsor-hello](contrib/windsor-hello/) | contrib | `ghcr.io/windsorcli/windsor-hello` | CI smoke-test extension |
 
 ## Developing
@@ -96,6 +97,18 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 - **main** — images pushed to `ghcr.io/windsorcli/*` on every merge.
 - **tags** `v*` — draft GitHub release with generated notes; catalog image tagged to match.
+- **manual pre-release** — run the `CI` workflow via `workflow_dispatch` from a branch/PR ref and set `prerelease_tag` to a SemVer pre-release (for example `v0.3.0-rc.1`) to publish signed OCI artifacts without merging.
+
+Example pre-release smoke test flow for a PR branch:
+
+```bash
+# 1) Open Actions -> CI -> Run workflow
+# 2) Select branch: hyperv-guest-extension
+# 3) Set prerelease_tag: v0.3.0-rc.1
+
+# Resolve published digest from catalog:
+./scripts/resolve-extension.sh hyperv-guest v0.3.0-rc.1
+```
 
 [Release Drafter](.github/release-drafter.yml) manages version bumps from PR labels.
 

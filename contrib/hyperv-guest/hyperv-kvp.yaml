@@ -1,0 +1,27 @@
+name: hyperv-kvp
+container:
+  entrypoint: ./run-hyperv-kvp.sh
+  mounts:
+    - source: /dev
+      destination: /dev
+      type: bind
+      options:
+        - rbind
+        - rw
+    - source: /var/lib/hyperv
+      destination: /var/lib/hyperv
+      type: bind
+      options:
+        - rbind
+        - rw
+    - source: /sys
+      destination: /sys
+      type: bind
+      options:
+        - rbind
+        - ro
+depends:
+  - network:
+      - addresses
+restart: always
+logToConsole: true

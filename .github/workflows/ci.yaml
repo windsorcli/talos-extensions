@@ -17,6 +17,12 @@ on:
   pull_request:
     branches:
       - main
+  workflow_dispatch:
+    inputs:
+      prerelease_tag:
+        description: "SemVer pre-release tag to publish (e.g. v0.3.0-rc.1)"
+        required: true
+        type: string
 
 concurrency:
   group: ${{ github.head_ref || github.run_id }}
@@ -49,7 +55,10 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y shellcheck
-          shellcheck scripts/*.sh hack/*.sh
+          # Lint shell scripts under scripts/, hack/, and any extension's
+          # bundled scripts (e.g. contrib/<name>/src/, contrib/<name>/scripts/).
+          # find/xargs handles missing dirs and empty matches cleanly.
+          find scripts hack contrib -name '*.sh' -print0 | xargs -0 -r shellcheck
 
       - name: Install conftest
         run: |
@@ -94,6 +103,20 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Resolve explicit publish tag
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          INPUT_TAG: ${{ github.event.inputs.prerelease_tag }}
+        run: |
+          set -euo pipefail
+          if [[ ! "${INPUT_TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-[0-9A-Za-z.-]+$ ]]; then
+            echo "Invalid prerelease tag '${INPUT_TAG}'. Expected SemVer pre-release like v0.3.0-rc.1."
+            exit 1
+          fi
+
+          echo "Using explicit publish tag: ${INPUT_TAG}"
+          echo "TAG=${INPUT_TAG}" >> "$GITHUB_ENV"
 
       - name: Unshallow
         run: git fetch --prune --unshallow
@@ -153,7 +176,7 @@ jobs:
 
           # Catalog image. Resolve the digest from the registry since the
           # Makefile's `extensions` target does not emit a metadata file.
-          TAG="$(git describe --tag --always --dirty --match 'v[0-9]*')"
+          TAG="${TAG:-$(git describe --tag --always --dirty --match 'v[0-9]*')}"
           CATALOG_REF="${REGISTRY}/${USERNAME}/extensions:${TAG}"
           CATALOG_DIGEST="$(crane digest "${CATALOG_REF}")"
           echo "::group::cosign sign ${CATALOG_REF}@${CATALOG_DIGEST}"
@@ -170,7 +193,7 @@ jobs:
           COSIGN_IDENTITY_REGEXP: 'https://github.com/windsorcli/talos-extensions/\.github/workflows/ci\.yaml@.*'
           COSIGN_OIDC_ISSUER: https://token.actions.githubusercontent.com
         run: |
-          TAG="$(git describe --tag --always --dirty --match 'v[0-9]*')"
+          TAG="${TAG:-$(git describe --tag --always --dirty --match 'v[0-9]*')}"
           CATALOG_REF="${REGISTRY}/${USERNAME}/extensions:${TAG}"
           CATALOG_DIGEST="$(crane digest "${CATALOG_REF}")"
 

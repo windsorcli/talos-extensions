@@ -1,0 +1,51 @@
+name: hyperv-guest
+variant: scratch
+shell: /bin/bash
+dependencies:
+  - stage: base
+steps:
+    # hv_kvp_daemon / hv_vss_daemon are the upstream Linux Hyper-V tools. bldr
+    # runs build steps hermetically (no network), so sources are fetched via the
+    # `sources:` directive (checksum-verified) during bldr's fetch phase rather
+    # than curled at build time. Stable patch tags (v6.12.28) live in the
+    # linux-stable tree, mirrored on GitHub as gregkh/linux — torvalds/linux
+    # only tags minors (v6.12). The hv/ tools are stable across patch releases.
+  - sources:
+      - url: https://raw.githubusercontent.com/gregkh/linux/v6.12.28/tools/hv/hv_kvp_daemon.c
+        destination: hv_kvp_daemon.c
+        sha256: dec0085c31ae14d81554ebdfca93b858b865928b5314e5c1040e2759abf277eb
+        sha512: 41aa793532c5caed565464777bf90cb2e8b147c48836ec73c8ee8edea77f1e2285b4eb8746cb3b7ce7bd0bf70169f3010f08e10dfad017ce273874c448e14b1a
+      - url: https://raw.githubusercontent.com/gregkh/linux/v6.12.28/tools/hv/hv_vss_daemon.c
+        destination: hv_vss_daemon.c
+        sha256: 21c082958b7a92e9f3b0c3e8d2c684a802aeb15329a1bae5d4eccd739898b615
+        sha512: 940ab279e706dc13438849253d59e58af9710c55fcd2a879715ccc59accfa0cc68e2299c5ec95fde82dd1d7baf0fb0c49d56c3cdf4a4a2c95e8685528497ea8b
+    build:
+      - |
+        set -euo pipefail
+        mkdir -p /tmp/hv
+        gcc -Os -static -o /tmp/hv/hv_kvp_daemon hv_kvp_daemon.c
+        gcc -Os -static -o /tmp/hv/hv_vss_daemon hv_vss_daemon.c
+    install:
+      - |
+        kvp_root=/rootfs/usr/local/lib/containers/hyperv-kvp
+        vss_root=/rootfs/usr/local/lib/containers/hyperv-vss
+        mkdir -p "$kvp_root" "$vss_root" /rootfs/usr/local/etc/containers
+
+        cp /tmp/hv/hv_kvp_daemon "$kvp_root/"
+        cp /tmp/hv/hv_vss_daemon "$vss_root/"
+        cp /pkg/src/run-hyperv-kvp.sh "$kvp_root/"
+        chmod +x "$kvp_root/run-hyperv-kvp.sh" "$kvp_root/hv_kvp_daemon" "$vss_root/hv_vss_daemon"
+
+        cp /pkg/hyperv-kvp.yaml /rootfs/usr/local/etc/containers/
+        cp /pkg/hyperv-vss.yaml /rootfs/usr/local/etc/containers/
+    test:
+      - |
+        mkdir -p /extensions-validator-rootfs
+        cp -r /rootfs/ /extensions-validator-rootfs/rootfs
+        cp /pkg/manifest.yaml /extensions-validator-rootfs/manifest.yaml
+        /extensions-validator validate --rootfs=/extensions-validator-rootfs --pkg-name="${PKG_NAME}"
+finalize:
+  - from: /rootfs
+    to: /rootfs
+  - from: /pkg/manifest.yaml
+    to: /

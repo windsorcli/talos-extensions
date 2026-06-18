@@ -52,14 +52,14 @@ COMMON_ARGS += $(BUILD_ARGS)
 # extra variables
 
 EXTENSIONS_IMAGE_REF ?= $(REGISTRY_AND_USERNAME)/extensions:$(TAG)
-PKGS ?= v1.12.5
+PKGS ?= v1.13.0
 PKGS_PREFIX ?= ghcr.io/siderolabs
-TOOLS ?= v1.12.5
+TOOLS ?= v1.13.0
 TOOLS_PREFIX ?= ghcr.io/siderolabs
 
 # targets defines all the available extension targets
 
-TARGETS = windsor-hello
+TARGETS = hyperv-guest windsor-hello
 
 export define HELP_MENU_HEADER
 # Windsor Talos Extensions
